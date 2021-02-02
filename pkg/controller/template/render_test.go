@@ -26,11 +26,24 @@ func TestCloudProvider(t *testing.T) {
 	dummyTemplate := []byte(`{{cloudProvider .}}`)
 
 	cases := []struct {
-		platform configv1.PlatformType
-		res      string
+		platform     configv1.PlatformType
+		featureGates map[string]bool
+		res          string
 	}{{
 		platform: configv1.AWSPlatformType,
 		res:      "aws",
+	}, {
+		platform:     configv1.AWSPlatformType,
+		featureGates: map[string]bool{featureGateExternalName: true},
+		res:          "external",
+	}, {
+		platform:     configv1.OpenStackPlatformType,
+		featureGates: map[string]bool{featureGateExternalName: false},
+		res:          "openstack",
+	}, {
+		platform:     configv1.OpenStackPlatformType,
+		featureGates: map[string]bool{"other": true},
+		res:          "openstack",
 	}, {
 		platform: configv1.OpenStackPlatformType,
 		res:      "openstack",
@@ -67,7 +80,7 @@ func TestCloudProvider(t *testing.T) {
 					},
 				},
 			}
-			got, err := renderTemplate(RenderConfig{&config.Spec, `{"dummy":"dummy"}`, nil}, name, dummyTemplate)
+			got, err := renderTemplate(RenderConfig{&config.Spec, `{"dummy":"dummy"}`, c.featureGates, nil}, name, dummyTemplate)
 			if err != nil {
 				t.Fatalf("expected nil error %v", err)
 			}
@@ -83,9 +96,10 @@ func TestCloudConfigFlag(t *testing.T) {
 	dummyTemplate := []byte(`{{cloudConfigFlag .}}`)
 
 	cases := []struct {
-		platform configv1.PlatformType
-		content  string
-		res      string
+		platform     configv1.PlatformType
+		content      string
+		featureGates map[string]bool
+		res          string
 	}{{
 		platform: configv1.AWSPlatformType,
 		content:  "",
@@ -119,7 +133,31 @@ func TestCloudConfigFlag(t *testing.T) {
     option = a
 `,
 		res: "--cloud-config=/etc/kubernetes/cloud.conf",
+	}, {
+		platform: configv1.OpenStackPlatformType,
+		content: `
+[dummy-config]
+    option = a
+`,
+		res: "--cloud-config=/etc/kubernetes/cloud.conf",
+	}, {
+		platform: configv1.OpenStackPlatformType,
+		content: `
+[dummy-config]
+    option = a
+`,
+		featureGates: map[string]bool{featureGateExternalName: true},
+		res:          "",
+	}, {
+		platform: configv1.AWSPlatformType,
+		content: `
+[dummy-config]
+    option = a
+`,
+		featureGates: map[string]bool{featureGateExternalName: false},
+		res:          "--cloud-config=/etc/kubernetes/cloud.conf",
 	}}
+
 	for idx, c := range cases {
 		name := fmt.Sprintf("case #%d", idx)
 		t.Run(name, func(t *testing.T) {
@@ -135,7 +173,7 @@ func TestCloudConfigFlag(t *testing.T) {
 					CloudProviderConfig: c.content,
 				},
 			}
-			got, err := renderTemplate(RenderConfig{&config.Spec, `{"dummy":"dummy"}`, nil}, name, dummyTemplate)
+			got, err := renderTemplate(RenderConfig{&config.Spec, `{"dummy":"dummy"}`, c.featureGates, nil}, name, dummyTemplate)
 			if err != nil {
 				t.Fatalf("expected nil error %v", err)
 			}
@@ -222,14 +260,14 @@ func TestInvalidPlatform(t *testing.T) {
 
 	// we must treat unrecognized constants as "none"
 	controllerConfig.Spec.Infra.Status.PlatformStatus.Type = "_bad_"
-	_, err = generateTemplateMachineConfigs(&RenderConfig{&controllerConfig.Spec, `{"dummy":"dummy"}`, nil}, templateDir)
+	_, err = generateTemplateMachineConfigs(&RenderConfig{&controllerConfig.Spec, `{"dummy":"dummy"}`, nil, nil}, templateDir)
 	if err != nil {
 		t.Errorf("expect nil error, got: %v", err)
 	}
 
 	// explicitly blocked
 	controllerConfig.Spec.Infra.Status.PlatformStatus.Type = "_base"
-	_, err = generateTemplateMachineConfigs(&RenderConfig{&controllerConfig.Spec, `{"dummy":"dummy"}`, nil}, templateDir)
+	_, err = generateTemplateMachineConfigs(&RenderConfig{&controllerConfig.Spec, `{"dummy":"dummy"}`, nil, nil}, templateDir)
 	expectErr(err, "failed to create MachineConfig for role master: platform _base unsupported")
 }
 
@@ -240,7 +278,7 @@ func TestGenerateMachineConfigs(t *testing.T) {
 			t.Fatalf("failed to get controllerconfig config: %v", err)
 		}
 
-		cfgs, err := generateTemplateMachineConfigs(&RenderConfig{&controllerConfig.Spec, `{"dummy":"dummy"}`, nil}, templateDir)
+		cfgs, err := generateTemplateMachineConfigs(&RenderConfig{&controllerConfig.Spec, `{"dummy":"dummy"}`, nil, nil}, templateDir)
 		if err != nil {
 			t.Fatalf("failed to generate machine configs: %v", err)
 		}

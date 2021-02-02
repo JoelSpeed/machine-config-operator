@@ -22,10 +22,15 @@ import (
 	"github.com/openshift/machine-config-operator/pkg/version"
 )
 
+const (
+	featureGateExternalName = "ExternalCloudProvider"
+)
+
 // RenderConfig is wrapper around ControllerConfigSpec.
 type RenderConfig struct {
 	*mcfgv1.ControllerConfigSpec
-	PullSecret string
+	PullSecret   string
+	FeatureGates map[string]bool
 
 	// no need to set this, will be automatically configured
 	Constants map[string]string
@@ -332,6 +337,9 @@ func skipMissing(key string) (interface{}, error) {
 
 func cloudProvider(cfg RenderConfig) (interface{}, error) {
 	if cfg.Infra.Status.PlatformStatus != nil {
+		if enabled, found := cfg.FeatureGates[featureGateExternalName]; found && enabled {
+			return "external", nil
+		}
 		switch cfg.Infra.Status.PlatformStatus.Type {
 		case configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.OpenStackPlatformType, configv1.VSpherePlatformType:
 			return strings.ToLower(string(cfg.Infra.Status.PlatformStatus.Type)), nil
@@ -368,6 +376,10 @@ func cloudConfigFlag(cfg RenderConfig) interface{} {
 		cfg.Infra.Status.PlatformStatus = &configv1.PlatformStatus{
 			Type: "",
 		}
+	}
+
+	if enabled, found := cfg.FeatureGates[featureGateExternalName]; found && enabled {
+		return ""
 	}
 
 	flag := "--cloud-config=/etc/kubernetes/cloud.conf"
