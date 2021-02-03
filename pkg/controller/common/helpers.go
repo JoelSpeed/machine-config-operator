@@ -26,6 +26,7 @@ import (
 	translate3 "github.com/coreos/ignition/v2/config/v3_2/translate"
 	ign3types "github.com/coreos/ignition/v2/config/v3_2/types"
 	validate3 "github.com/coreos/ignition/v2/config/validate"
+
 	"github.com/ghodss/yaml"
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
@@ -33,6 +34,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	osev1 "github.com/openshift/api/config/v1"
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 	mcfgclientset "github.com/openshift/machine-config-operator/pkg/generated/clientset/versioned"
 )
@@ -590,4 +592,30 @@ func GetManagedKey(pool *mcfgv1.MachineConfigPool, client mcfgclientset.Interfac
 	}
 	err = client.MachineconfigurationV1().MachineConfigs().Delete(context.TODO(), deprecatedKey, metav1.DeleteOptions{})
 	return managedKey, err
+}
+
+// GenerateFeatureMap returns a map of enabled/disabled feature gate selection
+func GenerateFeatureMap(features *osev1.FeatureGate) (*map[string]bool, error) {
+	rv := make(map[string]bool)
+	set, ok := osev1.FeatureSets[features.Spec.FeatureSet]
+	if !ok {
+		return &rv, fmt.Errorf("enabled FeatureSet %v does not have a corresponding config", features.Spec.FeatureSet)
+	}
+	for _, featEnabled := range set.Enabled {
+		rv[featEnabled] = true
+	}
+	for _, featDisabled := range set.Disabled {
+		rv[featDisabled] = false
+	}
+	// The CustomNoUpgrade options will override our defaults. This is
+	// expected behavior and can potentially break a cluster.
+	if features.Spec.FeatureSet == osev1.CustomNoUpgrade && features.Spec.CustomNoUpgrade != nil {
+		for _, featEnabled := range features.Spec.CustomNoUpgrade.Enabled {
+			rv[featEnabled] = true
+		}
+		for _, featDisabled := range features.Spec.CustomNoUpgrade.Disabled {
+			rv[featDisabled] = false
+		}
+	}
+	return &rv, nil
 }

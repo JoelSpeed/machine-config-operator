@@ -426,7 +426,7 @@ func (ctrl *Controller) syncControllerConfig(key string) error {
 			err := fmt.Errorf("could not fetch FeatureGates: %v", err)
 			return ctrl.syncFailingStatus(cfg, err)
 		}
-		featureMap, err := ctrl.generateFeatureMap(fg)
+		featureMap, err := ctrlcommon.GenerateFeatureMap(fg)
 		if err != nil {
 			return ctrl.syncFailingStatus(cfg, err)
 		}
@@ -476,5 +476,5 @@ func getMachineConfigsForControllerConfig(templatesDir string, config *mcfgv1.Co
 
 // RunBootstrap runs the tempate controller in boostrap mode.
 func RunBootstrap(templatesDir string, config *mcfgv1.ControllerConfig, pullSecretRaw []byte) ([]*mcfgv1.MachineConfig, error) {
-	return getMachineConfigsForControllerConfig(templatesDir, config, pullSecretRawm nil)
+	return getMachineConfigsForControllerConfig(templatesDir, config, pullSecretRaw, nil)
 }

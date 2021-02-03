@@ -65,7 +65,7 @@ func (ctrl *Controller) syncFeatureHandler(key string) error {
 	} else if err != nil {
 		return err
 	}
-	featureGates, err := ctrl.generateFeatureMap(features)
+	featureGates, err := ctrlcommon.GenerateFeatureMap(features)
 	if err != nil {
 		return err
 	}
@@ -194,30 +194,4 @@ func (ctrl *Controller) deleteFeature(obj interface{}) {
 		}
 	}
 	glog.V(4).Infof("Deleted Feature %s and restored default config", features.Name)
-}
-
-//nolint:gocritic
-func (ctrl *Controller) generateFeatureMap(features *osev1.FeatureGate) (*map[string]bool, error) {
-	rv := make(map[string]bool)
-	set, ok := osev1.FeatureSets[features.Spec.FeatureSet]
-	if !ok {
-		return &rv, fmt.Errorf("enabled FeatureSet %v does not have a corresponding config", features.Spec.FeatureSet)
-	}
-	for _, featEnabled := range set.Enabled {
-		rv[featEnabled] = true
-	}
-	for _, featDisabled := range set.Disabled {
-		rv[featDisabled] = false
-	}
-	// The CustomNoUpgrade options will override our defaults. This is
-	// expected behavior and can potentially break a cluster.
-	if features.Spec.FeatureSet == osev1.CustomNoUpgrade && features.Spec.CustomNoUpgrade != nil {
-		for _, featEnabled := range features.Spec.CustomNoUpgrade.Enabled {
-			rv[featEnabled] = true
-		}
-		for _, featDisabled := range features.Spec.CustomNoUpgrade.Disabled {
-			rv[featDisabled] = false
-		}
-	}
-	return &rv, nil
 }
