@@ -440,7 +440,7 @@ func (ctrl *Controller) syncKubeletConfig(key string) error {
 		return ctrl.syncStatusOnly(cfg, err)
 	}
 
-	features, err := ctrl.featLister.Get(clusterFeatureInstanceName)
+	features, err := ctrl.featLister.Get(ctrlcommon.ClusterFeatureInstanceName)
 	if macherrors.IsNotFound(err) {
 		features = createNewDefaultFeatureGate()
 	} else if err != nil {

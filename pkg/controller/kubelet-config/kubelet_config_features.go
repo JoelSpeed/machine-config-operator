@@ -23,10 +23,6 @@ import (
 	"github.com/openshift/machine-config-operator/pkg/version"
 )
 
-const (
-	clusterFeatureInstanceName = "cluster"
-)
-
 func (ctrl *Controller) featureWorker() {
 	for ctrl.processNextFeatureWorkItem() {
 	}
@@ -52,7 +48,7 @@ func (ctrl *Controller) syncFeatureHandler(key string) error {
 	}()
 
 	// Fetch the Feature
-	features, err := ctrl.featLister.Get(clusterFeatureInstanceName)
+	features, err := ctrl.featLister.Get(ctrlcommon.ClusterFeatureInstanceName)
 	if errors.IsNotFound(err) {
 		glog.V(2).Infof("FeatureSet %v is missing, using default", key)
 		features = &osev1.FeatureGate{

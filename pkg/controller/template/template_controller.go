@@ -472,7 +472,7 @@ func (ctrl *Controller) syncControllerConfig(key string) error {
 	}
 
 	var features map[string]bool
-	if fg, err := ctrl.featLister.Get(clusterFeatureInstanceName); !errors.IsNotFound(err) {
+	if fg, err := ctrl.featLister.Get(ctrlcommon.ClusterFeatureInstanceName); !errors.IsNotFound(err) {
 		if err != nil {
 			glog.V(2).Infof("%v", err)
 			err := fmt.Errorf("could not fetch FeatureGates: %v", err)
