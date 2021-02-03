@@ -5,10 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 	"time"
 
 	"github.com/golang/glog"
+	osev1 "github.com/openshift/api/config/v1"
+	oseinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
+	oselistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/machine-config-operator/lib/resourceapply"
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 	ctrlcommon "github.com/openshift/machine-config-operator/pkg/controller/common"
@@ -16,6 +20,7 @@ import (
 	"github.com/openshift/machine-config-operator/pkg/generated/clientset/versioned/scheme"
 	mcfginformersv1 "github.com/openshift/machine-config-operator/pkg/generated/informers/externalversions/machineconfiguration.openshift.io/v1"
 	mcfglistersv1 "github.com/openshift/machine-config-operator/pkg/generated/listers/machineconfiguration.openshift.io/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,12 +57,14 @@ type Controller struct {
 	syncHandler             func(ccKey string) error
 	enqueueControllerConfig func(*mcfgv1.ControllerConfig)
 
-	ccLister mcfglistersv1.ControllerConfigLister
-	mcLister mcfglistersv1.MachineConfigLister
+	ccLister   mcfglistersv1.ControllerConfigLister
+	mcLister   mcfglistersv1.MachineConfigLister
+	featLister oselistersv1.FeatureGateLister
 
 	ccListerSynced        cache.InformerSynced
 	mcListerSynced        cache.InformerSynced
 	secretsInformerSynced cache.InformerSynced
+	featListerSynced      cache.InformerSynced
 
 	queue workqueue.RateLimitingInterface
 }
@@ -68,6 +75,7 @@ func New(
 	ccInformer mcfginformersv1.ControllerConfigInformer,
 	mcInformer mcfginformersv1.MachineConfigInformer,
 	secretsInformer coreinformersv1.SecretInformer,
+	featureInformer oseinformersv1.FeatureGateInformer,
 	kubeClient clientset.Interface,
 	mcfgClient mcfgclientset.Interface,
 ) *Controller {
@@ -102,27 +110,29 @@ func New(
 		DeleteFunc: ctrl.deleteSecret,
 	})
 
+	featureInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    ctrl.addFeature,
+		UpdateFunc: ctrl.updateFeature,
+		DeleteFunc: ctrl.deleteFeature,
+	})
+
 	ctrl.syncHandler = ctrl.syncControllerConfig
 	ctrl.enqueueControllerConfig = ctrl.enqueue
 
 	ctrl.ccLister = ccInformer.Lister()
 	ctrl.mcLister = mcInformer.Lister()
+	ctrl.featLister = featureInformer.Lister()
 	ctrl.ccListerSynced = ccInformer.Informer().HasSynced
 	ctrl.mcListerSynced = mcInformer.Informer().HasSynced
 	ctrl.secretsInformerSynced = secretsInformer.Informer().HasSynced
+	ctrl.featListerSynced = featureInformer.Informer().HasSynced
 
 	return ctrl
 }
 
 func (ctrl *Controller) filterSecret(secret *corev1.Secret) {
 	if secret.Name == "pull-secret" {
-		cfg, err := ctrl.ccLister.Get(ctrlcommon.ControllerConfigName)
-		if err != nil {
-			utilruntime.HandleError(fmt.Errorf("couldn't get ControllerConfig on secret callback %#v", err))
-			return
-		}
-		glog.V(4).Infof("Re-syncing ControllerConfig %s due to secret change", cfg.Name)
-		ctrl.enqueueControllerConfig(cfg)
+		ctrl.enqueueController()
 	}
 }
 
@@ -171,12 +181,54 @@ func (ctrl *Controller) deleteSecret(obj interface{}) {
 	}
 }
 
+func (ctrl *Controller) enqueueController() {
+	cfg, err := ctrl.ccLister.Get(ctrlcommon.ControllerConfigName)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("couldn't get ControllerConfig on secret callback %#v", err))
+		return
+	}
+	glog.V(4).Infof("Re-syncing ControllerConfig %s due to secret change", cfg.Name)
+	ctrl.enqueueControllerConfig(cfg)
+}
+
+func (ctrl *Controller) updateFeature(old, cur interface{}) {
+	oldFeature := old.(*osev1.FeatureGate)
+	newFeature := cur.(*osev1.FeatureGate)
+	if !reflect.DeepEqual(oldFeature.Spec, newFeature.Spec) {
+		glog.V(4).Infof("Update Feature %s", newFeature.Name)
+		ctrl.enqueueController()
+	}
+}
+
+func (ctrl *Controller) addFeature(obj interface{}) {
+	features := obj.(*osev1.FeatureGate)
+	glog.V(4).Infof("Adding Feature %s", features.Name)
+	ctrl.enqueueController()
+}
+
+func (ctrl *Controller) deleteFeature(obj interface{}) {
+	features, ok := obj.(*osev1.FeatureGate)
+	if !ok {
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
+			return
+		}
+		features, ok = tombstone.Obj.(*osev1.FeatureGate)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a FeatureGate %#v", obj))
+			return
+		}
+	}
+	glog.V(4).Infof("Deleted Feature %s and restored default controller config", features.Name)
+}
+
 // Run executes the template controller
 func (ctrl *Controller) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer ctrl.queue.ShutDown()
 
-	if !cache.WaitForCacheSync(stopCh, ctrl.ccListerSynced, ctrl.mcListerSynced, ctrl.secretsInformerSynced) {
+	if !cache.WaitForCacheSync(stopCh, ctrl.ccListerSynced, ctrl.mcListerSynced, ctrl.secretsInformerSynced, ctrl.featListerSynced) {
 		return
 	}
 
