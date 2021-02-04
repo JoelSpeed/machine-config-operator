@@ -595,7 +595,7 @@ func GetManagedKey(pool *mcfgv1.MachineConfigPool, client mcfgclientset.Interfac
 }
 
 // GenerateFeatureMap returns a map of enabled/disabled feature gate selection
-func GenerateFeatureMap(features *osev1.FeatureGate) (*map[string]bool, error) {
+func GenerateFeatureMap(features *osev1.FeatureGate, blacklist ...string) (*map[string]bool, error) {
 	rv := make(map[string]bool)
 	set, ok := osev1.FeatureSets[features.Spec.FeatureSet]
 	if !ok {
@@ -616,6 +616,11 @@ func GenerateFeatureMap(features *osev1.FeatureGate) (*map[string]bool, error) {
 		for _, featDisabled := range features.Spec.CustomNoUpgrade.Disabled {
 			rv[featDisabled] = false
 		}
+	}
+
+	// Remove features excluded due to being breaking for some reason
+	for _, excluded := range blacklist {
+		delete(rv, excluded)
 	}
 	return &rv, nil
 }
