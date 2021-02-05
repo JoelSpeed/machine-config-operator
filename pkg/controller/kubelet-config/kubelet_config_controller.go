@@ -317,12 +317,25 @@ func (ctrl *Controller) handleFeatureErr(err error, key interface{}) {
 }
 
 func (ctrl *Controller) generateOriginalKubeletConfig(role string) (*ign3types.File, error) {
+	var features map[string]bool
 	cc, err := ctrl.ccLister.Get(ctrlcommon.ControllerConfigName)
 	if err != nil {
 		return nil, fmt.Errorf("could not get ControllerConfig %v", err)
 	}
+	if fg, err := ctrl.featLister.Get(ctrlcommon.ClusterFeatureInstanceName); !macherrors.IsNotFound(err) {
+		if err != nil {
+			glog.V(2).Infof("%v", err)
+			err := fmt.Errorf("could not fetch FeatureGates: %v", err)
+			return nil, err
+		}
+		featureMap, err := ctrlcommon.GenerateFeatureMap(fg)
+		if err != nil {
+			return nil, err
+		}
+		features = *featureMap
+	}
 	// Render the default templates
-	rc := &mtmpl.RenderConfig{ControllerConfigSpec: &cc.Spec}
+	rc := &mtmpl.RenderConfig{ControllerConfigSpec: &cc.Spec, FeatureGates: features}
 	generatedConfigs, err := mtmpl.GenerateMachineConfigsForRole(rc, role, ctrl.templatesDir)
 	if err != nil {
 		return nil, fmt.Errorf("GenerateMachineConfigsforRole failed with error %s", err)
