@@ -94,3 +94,5 @@ replace (
 	k8s.io/metrics => k8s.io/metrics v0.20.0
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.20.0
 )
+
+replace github.com/openshift/library-go => github.com/JoelSpeed/library-go v0.0.0-20210210163630-27d38f56ec0d
