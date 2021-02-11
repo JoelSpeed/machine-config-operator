@@ -26,24 +26,35 @@ func TestCloudProvider(t *testing.T) {
 	dummyTemplate := []byte(`{{cloudProvider .}}`)
 
 	cases := []struct {
-		platform     configv1.PlatformType
-		featureGates map[string]bool
-		res          string
+		platform    configv1.PlatformType
+		featureGate *configv1.FeatureGate
+		res         string
 	}{{
 		platform: configv1.AWSPlatformType,
 		res:      "aws",
 	}, {
-		platform:     configv1.AWSPlatformType,
-		featureGates: map[string]bool{featureGateExternalName: true},
-		res:          "external",
+		platform: configv1.OpenStackPlatformType,
+		featureGate: &configv1.FeatureGate{
+			Spec: configv1.FeatureGateSpec{
+				FeatureGateSelection: configv1.FeatureGateSelection{
+					FeatureSet: configv1.CustomNoUpgrade,
+					CustomNoUpgrade: &configv1.CustomFeatureGates{
+						Enabled: []string{"ExternalCloudProvider"},
+					},
+				},
+			},
+		},
+		res: "external",
 	}, {
-		platform:     configv1.OpenStackPlatformType,
-		featureGates: map[string]bool{featureGateExternalName: false},
-		res:          "openstack",
-	}, {
-		platform:     configv1.OpenStackPlatformType,
-		featureGates: map[string]bool{"other": true},
-		res:          "openstack",
+		platform: configv1.OpenStackPlatformType,
+		featureGate: &configv1.FeatureGate{
+			Spec: configv1.FeatureGateSpec{
+				FeatureGateSelection: configv1.FeatureGateSelection{
+					FeatureSet: configv1.TechPreviewNoUpgrade,
+				},
+			},
+		},
+		res: "openstack",
 	}, {
 		platform: configv1.OpenStackPlatformType,
 		res:      "openstack",
@@ -80,7 +91,7 @@ func TestCloudProvider(t *testing.T) {
 					},
 				},
 			}
-			got, err := renderTemplate(RenderConfig{&config.Spec, `{"dummy":"dummy"}`, c.featureGates, nil}, name, dummyTemplate)
+			got, err := renderTemplate(RenderConfig{&config.Spec, `{"dummy":"dummy"}`, c.featureGate, nil}, name, dummyTemplate)
 			if err != nil {
 				t.Fatalf("expected nil error %v", err)
 			}
@@ -96,10 +107,10 @@ func TestCloudConfigFlag(t *testing.T) {
 	dummyTemplate := []byte(`{{cloudConfigFlag .}}`)
 
 	cases := []struct {
-		platform     configv1.PlatformType
-		content      string
-		featureGates map[string]bool
-		res          string
+		platform    configv1.PlatformType
+		content     string
+		featureGate *configv1.FeatureGate
+		res         string
 	}{{
 		platform: configv1.AWSPlatformType,
 		content:  "",
@@ -146,16 +157,31 @@ func TestCloudConfigFlag(t *testing.T) {
 [dummy-config]
     option = a
 `,
-		featureGates: map[string]bool{featureGateExternalName: true},
-		res:          "",
+		featureGate: &configv1.FeatureGate{
+			Spec: configv1.FeatureGateSpec{
+				FeatureGateSelection: configv1.FeatureGateSelection{
+					FeatureSet: configv1.CustomNoUpgrade,
+					CustomNoUpgrade: &configv1.CustomFeatureGates{
+						Enabled: []string{"ExternalCloudProvider"},
+					},
+				},
+			},
+		},
+		res: "",
 	}, {
-		platform: configv1.AWSPlatformType,
+		platform: configv1.OpenStackPlatformType,
 		content: `
 [dummy-config]
     option = a
 `,
-		featureGates: map[string]bool{featureGateExternalName: false},
-		res:          "--cloud-config=/etc/kubernetes/cloud.conf",
+		featureGate: &configv1.FeatureGate{
+			Spec: configv1.FeatureGateSpec{
+				FeatureGateSelection: configv1.FeatureGateSelection{
+					FeatureSet: configv1.TechPreviewNoUpgrade,
+				},
+			},
+		},
+		res: "--cloud-config=/etc/kubernetes/cloud.conf",
 	}}
 
 	for idx, c := range cases {
@@ -173,7 +199,7 @@ func TestCloudConfigFlag(t *testing.T) {
 					CloudProviderConfig: c.content,
 				},
 			}
-			got, err := renderTemplate(RenderConfig{&config.Spec, `{"dummy":"dummy"}`, c.featureGates, nil}, name, dummyTemplate)
+			got, err := renderTemplate(RenderConfig{&config.Spec, `{"dummy":"dummy"}`, c.featureGate, nil}, name, dummyTemplate)
 			if err != nil {
 				t.Fatalf("expected nil error %v", err)
 			}

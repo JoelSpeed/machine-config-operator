@@ -15,6 +15,7 @@ import (
 	"github.com/Masterminds/sprig"
 	"github.com/golang/glog"
 	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/library-go/pkg/operator/configobserver/cloudprovider"
 
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 	"github.com/openshift/machine-config-operator/pkg/constants"
@@ -29,8 +30,8 @@ const (
 // RenderConfig is wrapper around ControllerConfigSpec.
 type RenderConfig struct {
 	*mcfgv1.ControllerConfigSpec
-	PullSecret   string
-	FeatureGates map[string]bool
+	PullSecret  string
+	FeatureGate *configv1.FeatureGate
 
 	// no need to set this, will be automatically configured
 	Constants map[string]string
@@ -337,9 +338,16 @@ func skipMissing(key string) (interface{}, error) {
 
 func cloudProvider(cfg RenderConfig) (interface{}, error) {
 	if cfg.Infra.Status.PlatformStatus != nil {
-		if enabled, found := cfg.FeatureGates[featureGateExternalName]; found && enabled {
-			return "external", nil
+		if cfg.FeatureGate != nil {
+			external, err := cloudprovider.IsCloudProviderExternal(cfg.Infra.Status.PlatformStatus.Type, cfg.FeatureGate)
+			if err != nil {
+				return "", err
+			}
+			if external {
+				return "external", nil
+			}
 		}
+
 		switch cfg.Infra.Status.PlatformStatus.Type {
 		case configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.OpenStackPlatformType, configv1.VSpherePlatformType:
 			return strings.ToLower(string(cfg.Infra.Status.PlatformStatus.Type)), nil
@@ -361,9 +369,9 @@ func cloudProvider(cfg RenderConfig) (interface{}, error) {
 // used for select platforms only.
 //
 // [1]: https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/#options
-func cloudConfigFlag(cfg RenderConfig) interface{} {
+func cloudConfigFlag(cfg RenderConfig) (interface{}, error) {
 	if cfg.CloudProviderConfig == "" {
-		return ""
+		return "", nil
 	}
 
 	if cfg.Infra == nil {
@@ -378,16 +386,22 @@ func cloudConfigFlag(cfg RenderConfig) interface{} {
 		}
 	}
 
-	if enabled, found := cfg.FeatureGates[featureGateExternalName]; found && enabled {
-		return ""
+	if cfg.FeatureGate != nil {
+		external, err := cloudprovider.IsCloudProviderExternal(cfg.Infra.Status.PlatformStatus.Type, cfg.FeatureGate)
+		if err != nil {
+			return "", err
+		}
+		if external {
+			return "", nil
+		}
 	}
 
 	flag := "--cloud-config=/etc/kubernetes/cloud.conf"
 	switch cfg.Infra.Status.PlatformStatus.Type {
 	case configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.GCPPlatformType, configv1.OpenStackPlatformType, configv1.VSpherePlatformType:
-		return flag
+		return flag, nil
 	default:
-		return ""
+		return "", nil
 	}
 }
 

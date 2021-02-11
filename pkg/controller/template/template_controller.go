@@ -471,20 +471,15 @@ func (ctrl *Controller) syncControllerConfig(key string) error {
 		pullSecretRaw = secret.Data[corev1.DockerConfigJsonKey]
 	}
 
-	var features map[string]bool
-	if fg, err := ctrl.featLister.Get(ctrlcommon.ClusterFeatureInstanceName); !errors.IsNotFound(err) {
+	fg, err := ctrl.featLister.Get(ctrlcommon.ClusterFeatureInstanceName)
+	if !errors.IsNotFound(err) {
 		if err != nil {
 			glog.V(2).Infof("%v", err)
 			err := fmt.Errorf("could not fetch FeatureGates: %v", err)
 			return ctrl.syncFailingStatus(cfg, err)
 		}
-		featureMap, err := ctrlcommon.GenerateFeatureMap(fg)
-		if err != nil {
-			return ctrl.syncFailingStatus(cfg, err)
-		}
-		features = *featureMap
 	}
-	mcs, err := getMachineConfigsForControllerConfig(ctrl.templatesDir, cfg, pullSecretRaw, features)
+	mcs, err := getMachineConfigsForControllerConfig(ctrl.templatesDir, cfg, pullSecretRaw, fg)
 	if err != nil {
 		return ctrl.syncFailingStatus(cfg, err)
 	}
@@ -502,7 +497,7 @@ func (ctrl *Controller) syncControllerConfig(key string) error {
 	return ctrl.syncCompletedStatus(cfg)
 }
 
-func getMachineConfigsForControllerConfig(templatesDir string, config *mcfgv1.ControllerConfig, pullSecretRaw []byte, features map[string]bool) ([]*mcfgv1.MachineConfig, error) {
+func getMachineConfigsForControllerConfig(templatesDir string, config *mcfgv1.ControllerConfig, pullSecretRaw []byte, featureGate *osev1.FeatureGate) ([]*mcfgv1.MachineConfig, error) {
 	buf := &bytes.Buffer{}
 	if err := json.Compact(buf, pullSecretRaw); err != nil {
 		return nil, fmt.Errorf("couldn't compact pullsecret %q: %v", string(pullSecretRaw), err)
@@ -510,7 +505,7 @@ func getMachineConfigsForControllerConfig(templatesDir string, config *mcfgv1.Co
 	rc := &RenderConfig{
 		ControllerConfigSpec: &config.Spec,
 		PullSecret:           string(buf.Bytes()),
-		FeatureGates:         features,
+		FeatureGate:          featureGate,
 	}
 	mcs, err := generateTemplateMachineConfigs(rc, templatesDir)
 	if err != nil {
