@@ -23,13 +23,6 @@ import (
 	"github.com/openshift/machine-config-operator/pkg/version"
 )
 
-var (
-	// openshiftOnlyFeatureGates contains selection of featureGates which will be rejected by native kubelet
-	openshiftOnlyFeatureGates = []string{
-		"ExternalCloudProvider",
-	}
-)
-
 func (ctrl *Controller) featureWorker() {
 	for ctrl.processNextFeatureWorkItem() {
 	}
@@ -68,7 +61,7 @@ func (ctrl *Controller) syncFeatureHandler(key string) error {
 	} else if err != nil {
 		return err
 	}
-	featureGates, err := ctrlcommon.GenerateFeatureMap(features, openshiftOnlyFeatureGates...)
+	featureGates, err := ctrlcommon.GenerateFeatureMap(features, ctrlcommon.DefaultFeatureMapBlackList()...)
 	if err != nil {
 		return err
 	}

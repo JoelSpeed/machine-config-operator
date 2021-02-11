@@ -624,3 +624,10 @@ func GenerateFeatureMap(features *osev1.FeatureGate, blacklist ...string) (*map[
 	}
 	return &rv, nil
 }
+
+// DefaultFeatureMapBlackList is a list of OpenShift only feature gates that should not be passed to Kubernetes components.
+func DefaultFeatureMapBlackList() []string {
+	return []string{
+		"ExternalCloudProvider",
+	}
+}

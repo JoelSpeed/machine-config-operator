@@ -29,7 +29,7 @@ func TestFeatureGateDrift(t *testing.T) {
 			}
 			dataURL, _ := dataurl.DecodeString(*kubeletConfig.Contents.Source)
 			originalKubeConfig, _ := decodeKubeletConfig(dataURL.Data)
-			defaultFeatureGates, err := ctrl.generateFeatureMap(createNewDefaultFeatureGate())
+			defaultFeatureGates, err := ctrlcommon.GenerateFeatureMap(createNewDefaultFeatureGate(), ctrlcommon.DefaultFeatureMapBlackList()...)
 			if err != nil {
 				t.Errorf("could not generate defaultFeatureGates: %v", err)
 			}
@@ -105,7 +105,7 @@ func TestFeaturesCustomNoUpgrade(t *testing.T) {
 
 			features := &osev1.FeatureGate{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: clusterFeatureInstanceName,
+					Name: ctrlcommon.ClusterFeatureInstanceName,
 				},
 				Spec: osev1.FeatureGateSpec{
 					FeatureGateSelection: osev1.FeatureGateSelection{
