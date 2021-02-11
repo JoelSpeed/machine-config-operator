@@ -68,8 +68,8 @@ replace (
 	github.com/godbus/dbus => github.com/godbus/dbus v0.0.0-20190623212516-8a1682060722
 	github.com/googleapis/gnostic => github.com/googleapis/gnostic v0.4.1
 	github.com/opencontainers/runtime-spec => github.com/opencontainers/runtime-spec v0.1.2-0.20190408193819-a1b50f621a48
-	github.com/openshift/api => github.com/Danil-Grigorev/api v0.0.0-20210203135822-4c0df632510d
 	github.com/openshift/cluster-api => github.com/openshift/cluster-api v0.0.0-20191129101638-b09907ac6668
+	github.com/openshift/library-go => github.com/JoelSpeed/library-go v0.0.0-20210210163630-27d38f56ec0d
 	github.com/securego/gosec => github.com/securego/gosec v0.0.0-20190709033609-4b59c948083c
 	k8s.io/api => k8s.io/api v0.20.0
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.20.0
@@ -94,5 +94,3 @@ replace (
 	k8s.io/metrics => k8s.io/metrics v0.20.0
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.20.0
 )
-
-replace github.com/openshift/library-go => github.com/JoelSpeed/library-go v0.0.0-20210210163630-27d38f56ec0d

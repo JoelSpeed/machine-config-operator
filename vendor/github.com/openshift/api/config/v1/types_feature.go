@@ -105,9 +105,7 @@ var FeatureSets = map[FeatureSet]*FeatureGateEnabledDisabled{
 		Enabled:  []string{},
 		Disabled: []string{},
 	},
-	TechPreviewNoUpgrade: newDefaultFeatures().with(
-		"ExternalCloudProvider",
-	).toFeatures(),
+	TechPreviewNoUpgrade: newDefaultFeatures().toFeatures(),
 	LatencySensitive: newDefaultFeatures().
 		with(
 			"TopologyManager", // sig-pod, sjenning

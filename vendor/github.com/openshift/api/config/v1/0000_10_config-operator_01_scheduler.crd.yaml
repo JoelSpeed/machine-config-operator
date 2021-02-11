@@ -95,6 +95,7 @@ spec:
                   values are \"LowNodeUtilization\", \"HighNodeUtilization\", \"NoScoring\"
                   Defaults to \"LowNodeUtilization\""
                 type: string
+                default: LowNodeUtilization
                 enum:
                 - ""
                 - LowNodeUtilization

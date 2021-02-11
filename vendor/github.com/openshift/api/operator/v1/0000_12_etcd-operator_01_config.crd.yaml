@@ -187,10 +187,6 @@ spec:
                         successful deployment
                       type: integer
                       format: int32
-                    lastFailedCount:
-                      description: lastFailedCount is how often the last failed revision
-                        failed.
-                      type: integer
                     lastFailedRevision:
                       description: lastFailedRevision is the generation of the deployment
                         we tried and failed to deploy.
@@ -202,11 +198,6 @@ spec:
                       type: array
                       items:
                         type: string
-                    lastFailedTime:
-                      description: lastFailedTime is the time the last failed revision
-                        failed the last time.
-                      type: string
-                      format: date-time
                     nodeName:
                       description: nodeName is the name of the node
                       type: string
