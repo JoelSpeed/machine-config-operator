@@ -8,6 +8,8 @@ import (
 
 	"github.com/clarketm/json"
 	configv1 "github.com/openshift/api/config/v1"
+	configfakev1 "github.com/openshift/client-go/config/clientset/versioned/fake"
+	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,8 +36,9 @@ var (
 type fixture struct {
 	t *testing.T
 
-	client     *fake.Clientset
-	kubeclient *k8sfake.Clientset
+	client       *fake.Clientset
+	kubeclient   *k8sfake.Clientset
+	configclient *configfakev1.Clientset
 
 	ccLister []*mcfgv1.ControllerConfig
 	mcLister []*mcfgv1.MachineConfig
@@ -43,8 +46,9 @@ type fixture struct {
 	kubeactions []core.Action
 	actions     []core.Action
 
-	kubeobjects []runtime.Object
-	objects     []runtime.Object
+	kubeobjects   []runtime.Object
+	objects       []runtime.Object
+	configobjects []runtime.Object
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -91,12 +95,15 @@ func newPullSecret(name string, contents []byte) *corev1.Secret {
 func (f *fixture) newController() *Controller {
 	f.client = fake.NewSimpleClientset(f.objects...)
 	f.kubeclient = k8sfake.NewSimpleClientset(f.kubeobjects...)
+	f.configclient = configfakev1.NewSimpleClientset(f.configobjects...)
 
 	cinformer := coreinformersv1.NewSharedInformerFactory(f.kubeclient, noResyncPeriodFunc())
 	i := informers.NewSharedInformerFactory(f.client, noResyncPeriodFunc())
+	configinformer := configinformersv1.NewSharedInformerFactory(f.configclient, noResyncPeriodFunc())
+
 	c := New(templateDir,
 		i.Machineconfiguration().V1().ControllerConfigs(), i.Machineconfiguration().V1().MachineConfigs(), cinformer.Core().V1().Secrets(),
-		f.kubeclient, f.client)
+		configinformer.Config().V1().FeatureGates(), f.kubeclient, f.client)
 
 	c.ccListerSynced = alwaysReady
 	c.mcListerSynced = alwaysReady
@@ -271,7 +278,7 @@ func TestCreatesMachineConfigs(t *testing.T) {
 	f.objects = append(f.objects, cc)
 	f.kubeobjects = append(f.kubeobjects, ps)
 
-	expMCs, err := getMachineConfigsForControllerConfig(templateDir, cc, []byte(`{"dummy": "dummy"}`))
+	expMCs, err := getMachineConfigsForControllerConfig(templateDir, cc, []byte(`{"dummy": "dummy"}`), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +308,7 @@ func TestDoNothing(t *testing.T) {
 	f := newFixture(t)
 	cc := newControllerConfig("test-cluster")
 	ps := newPullSecret("coreos-pull-secret", []byte(`{"dummy": "dummy"}`))
-	mcs, err := getMachineConfigsForControllerConfig(templateDir, cc, []byte(`{"dummy": "dummy"}`))
+	mcs, err := getMachineConfigsForControllerConfig(templateDir, cc, []byte(`{"dummy": "dummy"}`), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +345,7 @@ func TestRecreateMachineConfig(t *testing.T) {
 	f := newFixture(t)
 	cc := newControllerConfig("test-cluster")
 	ps := newPullSecret("coreos-pull-secret", []byte(`{"dummy": "dummy"}`))
-	mcs, err := getMachineConfigsForControllerConfig(templateDir, cc, []byte(`{"dummy": "dummy"}`))
+	mcs, err := getMachineConfigsForControllerConfig(templateDir, cc, []byte(`{"dummy": "dummy"}`), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,7 +383,7 @@ func TestUpdateMachineConfig(t *testing.T) {
 	f := newFixture(t)
 	cc := newControllerConfig("test-cluster")
 	ps := newPullSecret("coreos-pull-secret", []byte(`{"dummy": "dummy"}`))
-	mcs, err := getMachineConfigsForControllerConfig(templateDir, cc, []byte(`{"dummy": "dummy"}`))
+	mcs, err := getMachineConfigsForControllerConfig(templateDir, cc, []byte(`{"dummy": "dummy"}`), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +403,7 @@ func TestUpdateMachineConfig(t *testing.T) {
 		f.objects = append(f.objects, mcs[idx])
 	}
 
-	expmcs, err := getMachineConfigsForControllerConfig(templateDir, cc, []byte(`{"dummy": "dummy"}`))
+	expmcs, err := getMachineConfigsForControllerConfig(templateDir, cc, []byte(`{"dummy": "dummy"}`), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
