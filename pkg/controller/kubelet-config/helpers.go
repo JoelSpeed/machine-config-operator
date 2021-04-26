@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	ign3types "github.com/coreos/ignition/v2/config/v3_2/types"
+	"github.com/imdario/mergo"
 	osev1 "github.com/openshift/api/config/v1"
 	"github.com/vincent-petithory/dataurl"
 	corev1 "k8s.io/api/core/v1"
@@ -16,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/kubelet/config/v1beta1"
 	kubeletconfigv1beta1 "k8s.io/kubelet/config/v1beta1"
 
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
@@ -320,4 +322,58 @@ func kubeletConfigToIgnFile(cfg *kubeletconfigv1beta1.KubeletConfiguration) (*ig
 	}
 	cfgIgn := createNewKubeletIgnition(cfgJSON)
 	return cfgIgn, nil
+}
+
+// generateKubeletIgnFiles generates the Ignition files from the kubelet config
+func generateKubeletIgnFiles(kubeletConfig *mcfgv1.KubeletConfig, originalKubeConfig *v1beta1.KubeletConfiguration, userDefinedSystemReserved map[string]string) (*ign3types.File, *ign3types.File, *ign3types.File, error) {
+	var (
+		kubeletIgnition            *ign3types.File
+		logLevelIgnition           *ign3types.File
+		autoSizingReservedIgnition *ign3types.File
+	)
+
+	if kubeletConfig.Spec.KubeletConfig != nil && kubeletConfig.Spec.KubeletConfig.Raw != nil {
+		specKubeletConfig, err := decodeKubeletConfig(kubeletConfig.Spec.KubeletConfig.Raw)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("could not deserialize the new Kubelet config: %v", err)
+		}
+
+		if val, ok := specKubeletConfig.SystemReserved["memory"]; ok {
+			userDefinedSystemReserved["memory"] = val
+			delete(specKubeletConfig.SystemReserved, "memory")
+		}
+
+		if val, ok := specKubeletConfig.SystemReserved["cpu"]; ok {
+			userDefinedSystemReserved["cpu"] = val
+			delete(specKubeletConfig.SystemReserved, "cpu")
+		}
+
+		// FeatureGates must be set from the FeatureGate.
+		// Remove them here to prevent the specKubeletConfig merge overwriting them.
+		specKubeletConfig.FeatureGates = nil
+
+		// Merge the Old and New
+		err = mergo.Merge(originalKubeConfig, specKubeletConfig, mergo.WithOverride)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("could not merge original config and new config: %v", err)
+		}
+	}
+
+	// Encode the new config into an Ignition File
+	kubeletIgnition, err := kubeletConfigToIgnFile(originalKubeConfig)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("could not encode JSON: %v", err)
+	}
+
+	if kubeletConfig.Spec.LogLevel != nil {
+		logLevelIgnition = createNewKubeletLogLevelIgnition(*kubeletConfig.Spec.LogLevel)
+	}
+	if kubeletConfig.Spec.AutoSizingReserved != nil && len(userDefinedSystemReserved) == 0 {
+		autoSizingReservedIgnition = createNewKubeletDynamicSystemReservedIgnition(kubeletConfig.Spec.AutoSizingReserved, userDefinedSystemReserved)
+	}
+	if len(userDefinedSystemReserved) > 0 {
+		autoSizingReservedIgnition = createNewKubeletDynamicSystemReservedIgnition(nil, userDefinedSystemReserved)
+	}
+
+	return kubeletIgnition, logLevelIgnition, autoSizingReservedIgnition, nil
 }
