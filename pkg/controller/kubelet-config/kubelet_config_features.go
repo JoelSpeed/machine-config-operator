@@ -175,7 +175,12 @@ func (ctrl *Controller) deleteFeature(obj interface{}) {
 // generateFeatureMap returns a map of enabled/disabled feature gate selection with exclusion list
 func generateFeatureMap(features *osev1.FeatureGate, exclusions ...string) (*map[string]bool, error) {
 	rv := make(map[string]bool)
-	set, ok := osev1.FeatureSets[features.Spec.FeatureSet]
+	featureSet := osev1.Default
+	if features != nil {
+		featureSet = features.Spec.FeatureSet
+	}
+
+	set, ok := osev1.FeatureSets[featureSet]
 	if !ok {
 		return &rv, fmt.Errorf("enabled FeatureSet %v does not have a corresponding config", features.Spec.FeatureSet)
 	}
@@ -187,7 +192,8 @@ func generateFeatureMap(features *osev1.FeatureGate, exclusions ...string) (*map
 	}
 	// The CustomNoUpgrade options will override our defaults. This is
 	// expected behavior and can potentially break a cluster.
-	if features.Spec.FeatureSet == osev1.CustomNoUpgrade && features.Spec.CustomNoUpgrade != nil {
+	// (For featureSet to not be the default, features.Spec must be non-nil)
+	if featureSet == osev1.CustomNoUpgrade && features.Spec.CustomNoUpgrade != nil {
 		for _, featEnabled := range features.Spec.CustomNoUpgrade.Enabled {
 			rv[featEnabled] = true
 		}
