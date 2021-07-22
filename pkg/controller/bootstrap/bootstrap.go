@@ -154,7 +154,7 @@ func (b *Bootstrap) Run(destDir string) error {
 	}
 
 	if len(kconfigs) != 0 {
-		kconfigs, err := kubeletconfig.RunKubeletBootstrap(b.templatesDir, kconfigs, cconfig, pools)
+		kconfigs, err := kubeletconfig.RunKubeletBootstrap(b.templatesDir, kconfigs, featureGate, cconfig, pools)
 		if err != nil {
 			return err
 		}

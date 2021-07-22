@@ -35,7 +35,7 @@ func TestRunKubeletBootstrap(t *testing.T) {
 					},
 				},
 			}
-			mcs, err := RunKubeletBootstrap("../../../templates", cfgs, cc, pools)
+			mcs, err := RunKubeletBootstrap("../../../templates", cfgs, nil, cc, pools)
 			require.NoError(t, err)
 			require.Len(t, mcs, len(pools))
 
