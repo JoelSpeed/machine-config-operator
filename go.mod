@@ -24,6 +24,7 @@ require (
 	github.com/elazarl/goproxy v0.0.0-20190911111923-ecfe977594f1 // indirect
 	github.com/emicklei/go-restful v2.10.0+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0
+	github.com/go-bindata/go-bindata v3.1.2+incompatible
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golangci/golangci-lint v1.18.0
 	github.com/google/go-cmp v0.5.6
@@ -32,7 +33,6 @@ require (
 	github.com/gostaticanalysis/analysisutil v0.0.3 // indirect
 	github.com/huandu/xstrings v1.2.0 // indirect
 	github.com/imdario/mergo v0.3.12
-	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/openshift/api v0.0.0-20210924154557-a4f696157341
 	github.com/openshift/client-go v0.0.0-20210916133943-9acee1a0fb83
@@ -41,7 +41,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.0
 	github.com/securego/gosec v0.0.0-20191002120514-e680875ea14d
-	github.com/spf13/cobra v1.1.3
+	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
 	github.com/ultraware/funlen v0.0.2 // indirect
@@ -58,6 +58,7 @@ require (
 	k8s.io/kubectl v0.22.1
 	k8s.io/kubelet v0.22.1
 	k8s.io/utils v0.0.0-20210707171843-4b05e18ac7d9
+	sigs.k8s.io/controller-tools v0.6.2
 )
 
 replace (
