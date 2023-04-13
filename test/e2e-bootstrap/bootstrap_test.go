@@ -84,6 +84,7 @@ func TestE2EBootstrap(t *testing.T) {
 	testCases := []struct {
 		name             string
 		manifests        [][]byte
+		nodeConfig       runtime.Object
 		waitForMasterMCs []string
 		waitForWorkerMCs []string
 		platform         configv1.PlatformType
@@ -119,15 +120,18 @@ metadata:
 		},
 		{
 			name: "With a node config manifest empty \"cgroupMode\"",
-			manifests: [][]byte{
-				[]byte(`apiVersion: config.openshift.io/v1
-kind: Node
-metadata:
-  name: cluster
-spec:
-  workerLatencyProfile: MediumUpdateAverageReaction`),
+			nodeConfig: &configv1.Node{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "config.openshift.io/v1",
+					Kind:       "Node",
 			},
-
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: configv1.NodeSpec{
+					WorkerLatencyProfile: configv1.MediumUpdateAverageReaction,
+				},
+			},
 			waitForMasterMCs: []string{"99-master-ssh", "99-master-generated-registries"},
 			waitForWorkerMCs: []string{"99-worker-ssh", "99-worker-generated-registries", "97-worker-generated-kubelet"},
 		},
@@ -164,6 +168,18 @@ spec:
 		},
 		{
 			name: "With a featuregate manifest and a config node manifest",
+			nodeConfig: &configv1.Node{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "config.openshift.io/v1",
+					Kind:       "Node",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: configv1.NodeSpec{
+					CgroupMode: configv1.CgroupModeV2,
+				},
+			},
 			manifests: [][]byte{
 				[]byte(`apiVersion: config.openshift.io/v1
 kind: FeatureGate
@@ -171,25 +187,23 @@ metadata:
   name: cluster
 spec:
   featureSet: TechPreviewNoUpgrade`),
-				[]byte(`apiVersion: config.openshift.io/v1
-kind: Node
-metadata:
-  name: cluster
-spec:
-  cgroupMode: "v2"`),
 			},
 			waitForMasterMCs: []string{"99-master-ssh", "99-master-generated-registries", "98-master-generated-kubelet", "97-master-generated-kubelet"},
 			waitForWorkerMCs: []string{"99-worker-ssh", "99-worker-generated-registries", "98-worker-generated-kubelet", "97-worker-generated-kubelet"},
 		},
 		{
 			name: "With a config node manifest and without a featuregate manifest",
-			manifests: [][]byte{
-				[]byte(`apiVersion: config.openshift.io/v1
-kind: Node
-metadata:
-  name: cluster
-spec:
-  cgroupMode: "v2"`),
+			nodeConfig: &configv1.Node{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "config.openshift.io/v1",
+					Kind:       "Node",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: configv1.NodeSpec{
+					CgroupMode: configv1.CgroupModeV2,
+				},
 			},
 			// As the CGroupsV2 feature is GA, 97-{master/worker}-generated-kubelet mcs are expected even without a Techpreview featuregate
 			waitForMasterMCs: []string{"99-master-ssh", "99-master-generated-registries", "97-master-generated-kubelet"},
@@ -197,14 +211,20 @@ spec:
 		},
 		{
 			name: "With a node config manifest and a master kubelet config manifest",
+			nodeConfig: &configv1.Node{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "config.openshift.io/v1",
+					Kind:       "Node",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: configv1.NodeSpec{
+					WorkerLatencyProfile: configv1.MediumUpdateAverageReaction,
+					CgroupMode:           configv1.CgroupModeV1,
+				},
+			},
 			manifests: [][]byte{
-				[]byte(`apiVersion: config.openshift.io/v1
-kind: Node
-metadata:
-  name: cluster
-spec:
-  workerLatencyProfile: MediumUpdateAverageReaction
-  cgroupMode: "v1"`),
 				[]byte(`apiVersion: machineconfiguration.openshift.io/v1
 kind: KubeletConfig
 metadata:
@@ -229,13 +249,19 @@ spec:
 		},
 		{
 			name: "With a node config manifest and a worker kubelet config manifest",
+			nodeConfig: &configv1.Node{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "config.openshift.io/v1",
+					Kind:       "Node",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: configv1.NodeSpec{
+					WorkerLatencyProfile: configv1.MediumUpdateAverageReaction,
+				},
+			},
 			manifests: [][]byte{
-				[]byte(`apiVersion: config.openshift.io/v1
-kind: Node
-metadata:
-  name: cluster
-spec:
-  workerLatencyProfile: MediumUpdateAverageReaction`),
 				[]byte(`apiVersion: machineconfiguration.openshift.io/v1
 kind: KubeletConfig
 metadata:
@@ -361,13 +387,20 @@ spec:
 		t.Run(tc.name, func(t *testing.T) {
 			objs := append([]runtime.Object{}, baseTestManifests...)
 			objs = append(objs, loadRawManifests(t, tc.manifests)...)
-			nodeConfigManifest := [][]byte{
-				[]byte(`apiVersion: config.openshift.io/v1
-kind: Node
-metadata:
-  name: cluster`),
+
+			if tc.nodeConfig != nil {
+				objs = append(objs, tc.nodeConfig)
+			} else {
+				objs = append(objs, &configv1.Node{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "config.openshift.io/v1",
+						Kind:       "Node",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "cluster",
+					},
+				})
 			}
-			objs = append(objs, loadRawManifests(t, nodeConfigManifest)...)
 
 			if tc.platform != "" {
 				for i, obj := range objs {
