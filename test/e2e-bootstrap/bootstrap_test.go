@@ -86,6 +86,7 @@ func TestE2EBootstrap(t *testing.T) {
 		manifests        [][]byte
 		waitForMasterMCs []string
 		waitForWorkerMCs []string
+		platform         configv1.PlatformType
 	}{
 		{
 			name:             "With no additional manifests",
@@ -283,7 +284,7 @@ spec:
 			waitForWorkerMCs: []string{"99-worker-ssh", "99-worker-generated-registries", "99-worker-generated-kubelet"},
 		},
 		{
-			name: "With a storage manifest",
+			name: "With a storage manifest with vSphere CSI driver",
 			manifests: [][]byte{
 				[]byte(`apiVersion: operator.openshift.io/v1
 kind: Storage
@@ -298,6 +299,43 @@ spec:
 			},
 			waitForMasterMCs: []string{"99-master-ssh", "99-master-generated-registries"},
 			waitForWorkerMCs: []string{"99-worker-ssh", "99-worker-generated-registries"},
+			platform:         configv1.VSpherePlatformType,
+		},
+		{
+			name: "With a storage manifest with vSphere legacy driver",
+			manifests: [][]byte{
+				[]byte(`apiVersion: operator.openshift.io/v1
+kind: Storage
+metadata:
+  name: cluster
+spec:
+  managementState: Managed
+  logLevel: Normal
+  operatorLogLevel: Normal
+  vsphereStorageDriver: LegacyDeprecatedInTreeDriver
+`),
+			},
+			waitForMasterMCs: []string{"99-master-ssh", "99-master-generated-registries"},
+			waitForWorkerMCs: []string{"99-worker-ssh", "99-worker-generated-registries"},
+			platform:         configv1.VSpherePlatformType,
+		},
+		{
+			name: "With a storage manifest with no specified vSphere driver",
+			manifests: [][]byte{
+				[]byte(`apiVersion: operator.openshift.io/v1
+kind: Storage
+metadata:
+  name: cluster
+spec:
+  managementState: Managed
+  logLevel: Normal
+  operatorLogLevel: Normal
+  vsphereStorageDriver: ""
+`),
+			},
+			waitForMasterMCs: []string{"99-master-ssh", "99-master-generated-registries"},
+			waitForWorkerMCs: []string{"99-worker-ssh", "99-worker-generated-registries"},
+			platform:         configv1.VSpherePlatformType,
 		},
 		{
 			name: "With a container runtime config",
@@ -331,6 +369,16 @@ metadata:
 			}
 			objs = append(objs, loadRawManifests(t, nodeConfigManifest)...)
 
+			if tc.platform != "" {
+				for i, obj := range objs {
+					if obj.GetObjectKind().GroupVersionKind().Kind == "ControllerConfig" {
+						obj.(*mcfgv1.ControllerConfig).Spec.Infra.Status.PlatformStatus.Type = tc.platform
+						objs[i] = obj
+						break
+					}
+				}
+			}
+
 			fixture := newTestFixture(t, cfg, objs)
 			// Defer stop after cleanup so that the cleanup happens after the stop (defer unwrapping order)
 			defer framework.CleanEnvironment(t, clientSet)
@@ -354,14 +402,13 @@ metadata:
 			require.NoError(t, err)
 			defer os.RemoveAll(srcDir)
 
-			// Ensure all the manifests are in the input directory
-			err = copyDir(bootstrapTestDataDir, srcDir)
+			for id, obj := range objs {
+				manifest, err := yaml.Marshal(obj)
 			require.NoError(t, err)
 
-			for id, manifest := range tc.manifests {
 				name := fmt.Sprintf("manifest-%d.yaml", id)
 				path := filepath.Join(srcDir, name)
-				err := os.WriteFile(path, manifest, 0644)
+				err = os.WriteFile(path, manifest, 0644)
 				require.NoError(t, err)
 			}
 
